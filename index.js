@@ -43,33 +43,41 @@ function createHmacVerifier(bits) {
   }
 }
 
-function createKeySigner(bits) {
+function createKeySigner(bits, isEc) {
  return function sign(thing, privateKey) {
     if (!bufferOrString(privateKey) && !(typeof privateKey === 'object'))
       throw typeError(MSG_INVALID_SIGNER_KEY);
     thing = normalizeInput(thing);
-    // Even though we are specifying "RSA" here, this works with ECDSA
-    // keys as well.
-    var signer = crypto.createSign('RSA-SHA' + bits);
+    if (isEc) {
+      var signer = crypto.createSign('sha' + bits);
+    }
+    else {
+      var signer = crypto.createSign('RSA-SHA' + bits);
+    }
     var sig = (signer.update(thing), signer.sign(privateKey, 'base64'));
     return base64url.fromBase64(sig);
   }
 }
 
-function createKeyVerifier(bits) {
+function createKeyVerifier(bits, isEc) {
   return function verify(thing, signature, publicKey) {
     if (!bufferOrString(publicKey))
       throw typeError(MSG_INVALID_VERIFIER_KEY);
     thing = normalizeInput(thing);
     signature = base64url.toBase64(signature);
-    var verifier = crypto.createVerify('RSA-SHA' + bits);
+    if (isEc) {
+      var verifier = crypto.createVerify('sha' + bits);
+    }
+    else {
+      var verifier = crypto.createVerify('RSA-SHA' + bits);
+    }
     verifier.update(thing);
     return verifier.verify(publicKey, signature, 'base64');
   }
 }
 
 function createECDSASigner(bits) {
-  var inner = createKeySigner(bits);
+  var inner = createKeySigner(bits, true);
   return function sign() {
     var signature = inner.apply(null, arguments);
     signature = formatEcdsa.derToJose(signature, 'ES' + bits);
@@ -78,7 +86,7 @@ function createECDSASigner(bits) {
 }
 
 function createECDSAVerifer(bits) {
-  var inner = createKeyVerifier(bits);
+  var inner = createKeyVerifier(bits, true);
   return function verify(thing, signature, publicKey) {
     signature = formatEcdsa.joseToDer(signature, 'ES' + bits).toString('base64');
     var result = inner(thing, signature, publicKey);
